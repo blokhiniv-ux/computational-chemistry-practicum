@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Химическая база данных</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 1400px; margin: 24px auto; padding: 0 16px; color: #202124; }
+    h1 { margin-bottom: 8px; }
+    .panel { border: 1px solid #ddd; border-radius: 10px; padding: 16px; margin: 16px 0; background: #fafafa; }
+    input { padding: 9px; margin: 4px 4px 4px 0; min-width: 220px; max-width: 95%; }
+    button { padding: 9px 14px; margin: 4px 4px 4px 0; cursor: pointer; }
+    .status { min-height: 1.4em; margin-top: 8px; }
+    .error { color: #b00020; }
+    .ok { color: #146c2e; }
+    .table-wrap { overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; margin-top: 12px; font-size: 14px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: middle; }
+    th { background: #f0f2f4; }
+    img { width: 120px; height: auto; }
+    .muted { color: #555; }
+  </style>
+</head>
+<body>
+  <h1>База химических соединений</h1>
+  <p class="muted">Добавляйте соединения и ищите химические фрагменты через эту страницу. </p>
+
+  <section class="panel">
+    <h2>Добавить соединение</h2>
+    <form id="add-form">
+      <input id="name" name="name" placeholder="Название, например Ибупрофен" required>
+      <input id="smiles" name="smiles" placeholder="SMILES" required>
+      <button type="submit">Добавить в базу</button>
+    </form>
+    <div id="add-status" class="status" role="status"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Поиск по подструктуре</h2>
+    <form id="search-form">
+      <input id="query-smiles" name="query-smiles" placeholder="SMILES фрагмента, например c1ccccc1" required>
+      <button type="submit">Найти молекулы</button>
+      <button type="button" id="show-all">Показать все соединения</button>
+    </form>
+    <div id="search-status" class="status" role="status"></div>
+  </section>
+
+  <h2 id="table-heading">Все соединения</h2>
+  <p id="count" class="muted"></p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th><th>Название</th><th>Формула</th><th>Масса, Да</th>
+          <th>LogP</th><th>TPSA, Å²</th><th>Тяжёлые атомы</th><th>Структура</th>
+        </tr>
+      </thead>
+      <tbody id="results"></tbody>
+    </table>
+  </div>
+
+<script>
+  const resultsBody = document.getElementById("results");
+  const countLabel = document.getElementById("count");
+
+  function setStatus(id, message, isError = false) {
+    const el = document.getElementById(id);
+    el.textContent = message;
+    el.className = "status " + (isError ? "error" : "ok");
+  }
+
+  function addCell(row, value) {
+    const cell = document.createElement("td");
+    cell.textContent = value ?? "—";
+    row.appendChild(cell);
+    return cell;
+  }
+
+  function renderCompounds(compounds) {
+    resultsBody.replaceChildren();
+    for (const c of compounds) {
+      const row = document.createElement("tr");
+      addCell(row, c.id);
+      addCell(row, c.name);
+      addCell(row, c.formula);
+      addCell(row, Number(c.mw).toFixed(2));
+      addCell(row, Number(c.logp).toFixed(2));
+      addCell(row, Number(c.tpsa).toFixed(2));
+      addCell(row, c.heavy_atoms);
+
+      const imageCell = document.createElement("td");
+      const image = document.createElement("img");
+      image.src = `/api/image/${c.id}`;
+      image.alt = `Структура: ${c.name}`;
+      image.loading = "lazy";
+      imageCell.appendChild(image);
+      row.appendChild(imageCell);
+      resultsBody.appendChild(row);
+    }
+    countLabel.textContent = `Найдено соединений: ${compounds.length}`;
+  }
+
+  async function loadAll() {
+    setStatus("search-status", "Загружаем базу…");
+    try {
+      const response = await fetch("/api/compounds");
+      if (!response.ok) throw new Error("Сервер не смог вернуть список соединений.");
+      const compounds = await response.json();
+      renderCompounds(compounds);
+      document.getElementById("table-heading").textContent = "Все соединения";
+      setStatus("search-status", "Список загружен.");
+    } catch (error) {
+      setStatus("search-status", error.message, true);
+    }
+  }
+
+  document.getElementById("add-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const name = document.getElementById("name").value.trim();
+    const smiles = document.getElementById("smiles").value.trim();
+    setStatus("add-status", "Проверяем структуру и добавляем соединение…");
+
+    try {
+      const response = await fetch("/api/compounds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, smiles })
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || "Не удалось добавить соединение.");
+      setStatus("add-status", `Добавлено: ${name}. Формула: ${data.properties.formula}; масса: ${data.properties.molecular_weight.toFixed(2)} Да.`);
+      document.getElementById("add-form").reset();
+      await loadAll();
+    } catch (error) {
+      setStatus("add-status", error.message, true);
+    }
+  });
+
+  document.getElementById("search-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const smiles = document.getElementById("query-smiles").value.trim();
+    setStatus("search-status", "Выполняем поиск…");
+
+    try {
+      const response = await fetch("/api/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ smiles })
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || "Поиск не выполнен.");
+      renderCompounds(data.results);
+      document.getElementById("table-heading").textContent = "Результаты поиска по подструктуре";
+      setStatus("search-status", `Поиск завершён. Найдено: ${data.count}.`);
+    } catch (error) {
+      setStatus("search-status", error.message, true);
+    }
+  });
+
+  document.getElementById("show-all").addEventListener("click", loadAll);
+  loadAll();
+</script>
+</body>
+</html>
