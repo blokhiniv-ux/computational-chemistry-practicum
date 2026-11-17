@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+.venv/
+venv/
+env/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Gaussian
+*.log
+*.chk
+*.fchk
+*.rwf
+*.scr
+gaussian_inputs/
+gaussian_outputs/
+
+# Промежуточные данные Lab 26–28
+raw_data.csv
+cleaned_data.csv
+standardized_data.csv
+replicate_summary.csv
+aggregated_data.csv
+activity_checked.csv
+activity_cliffs.csv
+train.csv
+test.csv
+train_with_desc.csv
+test_with_desc.csv
+results.csv
+compounds.csv
+
+# Обученные модели и результаты
+*.pkl
+qsar_plot.png
+rf_importances.png
+pIC50_distribution.png
+drugs_analysis.png
+homo_lumo.png
+gap.png
+
+# Локальная база Lab 5 и конформеры Lab 10
+chemical_database.db
+cyclohexane_conformers/
+
+# Файл, нужный Appendix/parsing*.py
+water.log
