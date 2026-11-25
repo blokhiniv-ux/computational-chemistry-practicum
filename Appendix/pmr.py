@@ -1,34 +1,49 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+# Настройки шрифтов для книги
+import matplotlib
+matplotlib.rcParams['svg.fonttype'] = 'none'
+matplotlib.rcParams['font.family'] = 'serif'
+matplotlib.rcParams['font.serif'] = ['Times New Roman']
+
 # Параметры спектра этанола (CDCl3, примерно)
-# CH3: триплет, d=1.2 м.д., J=7 Гц; CH2: квартет, d=3.7 м.д.; OH: синглет, d=2.0 м.д.
 ppm = np.linspace(0.5, 4.5, 4000)   # ось спектра
-Hz_per_ppm = 400                    # спектрометр 400 МГц: 1 м.д. = 400 Гц
+Hz_per_ppm = 400                    # спектрометр 400 МГц
 lw = 2.0                            # ширина линии, Гц
 
 def lorentz(x, x0, h):
     return h / (1 + ((x - x0) * Hz_per_ppm / (lw / 2))**2)
 
 def multiplet(center, intens, J=7):
-    """Мультиплет: позиции линий от J, интенсивности по биномиальным коэффициентам"""
     n = len(intens)
     offsets = (np.arange(n) - (n - 1) / 2) * J / Hz_per_ppm
     coeffs = np.array(intens) / max(intens)
     return sum(lorentz(ppm, center + o, c) for o, c in zip(offsets, coeffs))
 
-spec  = multiplet(1.2, [1, 2, 1])          # CH3 — триплет 3H
-spec += multiplet(3.7, [1, 3, 3, 1])       # CH2 — квартет 2H
-spec += lorentz(ppm, 2.0, 1.0)             # OH — синглет 1H
+# Формирование спектра
+spec  = multiplet(1.2, [1, 2, 1])          # CH3 — триплет
+spec += multiplet(3.7, [1, 3, 3, 1])       # CH2 — квартет
+spec += lorentz(ppm, 2.0, 1.0)             # OH — синглет
 
-plt.plot(ppm, spec)
-plt.gca().invert_xaxis()                   # в ЯМР ось м.д. идёт справа налево!
-plt.xlabel("δ, м.д."); plt.ylabel("Интенсивность, отн.")
-plt.title("ЯМР ¹H этанола (модель)")
-plt.show()
+# Построение графика
+fig, ax = plt.subplots(figsize=(8, 5))
+ax.plot(ppm, spec, color='black', lw=1.5)
+ax.invert_xaxis()                   # ось м.д. идёт справа налево
+ax.set_xlabel("δ, м.д.", fontsize=14)
+ax.set_ylabel("Интенсивность, отн.", fontsize=14)
+ax.set_title("ЯМР ¹H этанола (модель)", fontsize=16)
 
-# Интегрирование — проверяем соотношение 3:2:1
-areas = [np.trapz(spec[(ppm > a) & (ppm < b)], ppm[(ppm > a) & (ppm < b)])
-         for a, b in [(0.8, 1.6), (3.2, 4.2), (1.7, 2.3)]]
+# Интегрирование
+areas = [np.trapezoid(spec[(ppm > a) & (ppm < b)], ppm[(ppm > a) & (ppm < b)])
+         for a, b in [(0.8, 1.6), (1.7, 2.3), (3.2, 4.2)]]
+
 norm = np.array(areas) / min(areas)
 print("Интегралы (CH3 : OH : CH2):", norm.round(2))
+
+# Сохраняем рисунок в векторный SVG для книги
+plt.savefig('ethanol_nmr.svg', format='svg', bbox_inches='tight')
+print("Рисунок сохранен в файл ethanol_nmr.svg")
+
+# Показываем окно (после этого программу нужно просто закрыть)
+plt.show()
